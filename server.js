@@ -6,10 +6,10 @@ const app = express();
 app.use(express.json());
 app.use(express.static('.'));
 
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'URL_APPS_SCRIPT_CUA_BAN';
-const SECRET_TOKEN    = process.env.SECRET_TOKEN    || 'TOKEN_BI_MAT_CUA_BAN';
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || '';
+const SECRET_TOKEN    = process.env.SECRET_TOKEN    || '';
 
-// ── API TRUNG GIAN ──
+// API trung gian – client gọi vào đây
 app.post('/api/tao-pdf', async (req, res) => {
   const { ho_ten, ngay_sinh, email, sdt, orderId } = req.body;
 
@@ -18,112 +18,87 @@ app.post('/api/tao-pdf', async (req, res) => {
   }
 
   try {
-    const result = await callAppsScript({
-      token: SECRET_TOKEN,
-      ho_ten, ngay_sinh,
-      email: email || '',
-      sdt:   sdt   || '',
-      orderId,
-    });
+    const result = await goiAppsScript(ho_ten, ngay_sinh, email, sdt, orderId);
     res.json(result);
   } catch (err) {
-    console.error('Lỗi gọi Apps Script:', err.message);
+    console.error('Lỗi:', err.message);
     res.status(500).json({ success: false, error: 'Lỗi server: ' + err.message });
   }
 });
 
-// ── Gọi Apps Script qua GET – tự follow redirect ──
-function httpsGet(urlStr) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(urlStr);
-    const options = {
-      hostname: url.hostname,
-      path: url.pathname + url.search,
-      method: 'GET',
-    };
-
-    const req = https.request(options, (res) => {
-      if ((res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) && res.headers.location) {
-        console.log('Redirect đến:', res.headers.location);
-        return httpsGet(res.headers.location).then(resolve).catch(reject);
-      }
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        console.log('Response status:', res.statusCode);
-        console.log('Response preview:', data.substring(0, 150));
-        resolve(data);
-      });
+// Gọi Apps Script qua GET request
+function goiAppsScript(ho_ten, ngay_sinh, email, sdt, orderId) {
+  return new Promise(function(resolve, reject) {
+    var params = new URLSearchParams({
+      token:     SECRET_TOKEN,
+      ho_ten:    ho_ten,
+      ngay_sinh: ngay_sinh,
+      email:     email || '',
+      sdt:       sdt   || '',
+      orderId:   orderId
     });
 
-    req.on('error', reject);
-    req.end();
+    var fullUrl = APPS_SCRIPT_URL + '?' + params.toString();
+    console.log('Gọi Apps Script:', APPS_SCRIPT_URL);
+
+    layDuLieu(fullUrl, resolve, reject, 0);
   });
 }
-  return new Promise((resolve, reject) => {
-    const url = new URL(urlStr);
-    const options = {
-      hostname: url.hostname,
-      path: url.pathname + url.search,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body),
-      },
-    };
 
-    const req = https.request(options, (res) => {
-      // Follow redirect
-      if ((res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) && res.headers.location) {
-        console.log('Redirect đến:', res.headers.location);
-        return httpsPost(res.headers.location, body).then(resolve).catch(reject);
+// Tải dữ liệu từ URL, tự follow redirect
+function layDuLieu(urlStr, resolve, reject, depth) {
+  if (depth > 5) {
+    reject(new Error('Quá nhiều redirect'));
+    return;
+  }
+
+  var url = new URL(urlStr);
+  var options = {
+    hostname: url.hostname,
+    path:     url.pathname + url.search,
+    method:   'GET',
+    headers:  { 'Accept': 'application/json' }
+  };
+
+  var req = https.request(options, function(res) {
+    var location = res.headers.location;
+
+    // Follow redirect
+    if ((res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) && location) {
+      console.log('Redirect tới:', location);
+      layDuLieu(location, resolve, reject, depth + 1);
+      return;
+    }
+
+    var data = '';
+    res.on('data', function(chunk) { data += chunk; });
+    res.on('end', function() {
+      console.log('Status:', res.statusCode);
+      console.log('Response:', data.substring(0, 200));
+
+      if (data.trim().startsWith('<')) {
+        reject(new Error('Apps Script trả về HTML – kiểm tra quyền deploy'));
+        return;
       }
 
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        console.log('Apps Script response:', data.substring(0, 200));
-        resolve(data);
-      });
+      try {
+        resolve(JSON.parse(data));
+      } catch(e) {
+        reject(new Error('Lỗi JSON: ' + data.substring(0, 100)));
+      }
     });
-
-    req.on('error', reject);
-    req.write(body);
-    req.end();
-  });
-}
-
-async function callAppsScript(data) {
-  // Dùng GET thay vì POST – Apps Script xử lý GET tốt hơn từ server ngoài
-  const params = new URLSearchParams({
-    token:     data.token,
-    ho_ten:    data.ho_ten,
-    ngay_sinh: data.ngay_sinh,
-    email:     data.email || '',
-    sdt:       data.sdt   || '',
-    orderId:   data.orderId,
   });
 
-  const fullUrl = APPS_SCRIPT_URL + '?' + params.toString();
-  console.log('Gọi Apps Script GET:', APPS_SCRIPT_URL);
-
-  const raw = await httpsGet(fullUrl);
-
-  if (raw.trim().startsWith('<')) {
-    throw new Error('Apps Script trả về HTML – kiểm tra quyền truy cập');
-  }
-
-  try {
-    return JSON.parse(raw);
-  } catch (e) {
-    throw new Error('Lỗi parse JSON: ' + raw.substring(0, 200));
-  }
+  req.on('error', reject);
+  req.end();
 }
 
-// ── Serve index.html ──
-app.get('*', (req, res) => {
+// Trả về index.html cho mọi route
+app.get('*', function(req, res) {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Server chạy trên port ${PORT}`));
+var PORT = process.env.PORT || 3000;
+app.listen(PORT, function() {
+  console.log('Server chạy trên port ' + PORT);
+});
