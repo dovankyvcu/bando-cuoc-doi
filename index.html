@@ -46,7 +46,7 @@ h1{font-family:'Lora',serif;font-size:77px;font-weight:600;color:#e8c97a;letter-
 
 .btn-gold{width:100%;padding:17px;background:linear-gradient(135deg,#e8119a 0%,#e60a15 50%,#e8119a 100%);background-size:200%;border:none;border-radius:3px;font-family:'Be Vietnam Pro',serif;font-size:28px;letter-spacing:3px;color:#fafafa;cursor:pointer;text-transform:uppercase;transition:background-position 0.5s,transform 0.1s;margin-top:10px}
 .btn-gold:hover{background-position:100% 0}.btn-gold:active{transform:scale(0.99)}
-.btn-green{width:100%;padding:16px;background:linear-gradient(135deg,#b91c1c,#dc2626);border:none;border-radius:3px;font-family:'Cinzel',serif;font-size:14px;letter-spacing:3px;color:#ffffff;cursor:pointer;text-transform:uppercase;margin-bottom:12px;transition:opacity 0.2s;box-shadow:0 4px 20px #b91c1c55}
+.btn-green{width:100%;padding:16px;background:linear-gradient(135deg,#b91c1c,#dc2626);border:none;border-radius:3px;font-family:'Be Vietnam Pro',serif;font-size:26px;letter-spacing:3px;color:#ffffff;cursor:pointer;text-transform:uppercase;margin-bottom:12px;transition:opacity 0.2s;box-shadow:0 4px 20px #b91c1c55}
 .btn-green:hover{opacity:0.87}
 .btn-back{width:100%;padding:12px;background:transparent;border:1px solid #8a682040;border-radius:3px;font-family:'Be Vietnam Pro',sans-serif;font-size:26px;color:#6a5816;cursor:pointer;letter-spacing:0.5px;transition:background 0.2s}
 .btn-back:hover{background:rgba(138,104,32,0.07)}
@@ -138,8 +138,8 @@ h1{font-family:'Lora',serif;font-size:77px;font-weight:600;color:#e8c97a;letter-
         <div class="bank-row"><span class="lbl">Số tiền</span><span class="val hi">185.000đ</span></div>
         <div class="bank-row"><span class="lbl">Nội dung CK</span><span class="val hi" id="oid">–</span></div>
       </div>
-      <div class="warn">⚠️ Vui lòng ghi đúng nội dung chuyển khoản để hệ thống tự động xác nhận đơn hàng.</div>
-      <button class="btn-green" onclick="go2()">✦ Tôi đã chuyển khoản xong ✦</button>
+      <div class="warn">⚠️ Vui lòng quét mã QR code cho tiện hoặc ghi đúng nội dung chuyển khoản để hệ thống tự động xác nhận đơn hàng.</div>
+      <button class="btn-green" onclick="go2()">✦ HOÀN TẤT & NHẬN BẢN PHÂN TÍCH ✦</button>
       <button class="btn-back" onclick="back()">← Quay lại chỉnh thông tin</button>
     </div>
 
@@ -170,7 +170,7 @@ h1{font-family:'Lora',serif;font-size:77px;font-weight:600;color:#e8c97a;letter-
 </div>
 
 <script>
-var BIN="970422",STK="020012909999",CTK="DO THI THU THUY",AMT=185000;
+var AS="https://script.google.com/macros/s/AKfycbxTMWEJN_W1aevizUAY9YY4rvhq6f3Lhb0H06HIGXhmC02A4FPMecgGWT1gYtvZjzx4/exec",TK="kythuylienloanbimatsohoc",BIN="970422",STK="020012909999",CTK="DO THI THU THUY",AMT=185000;
 var oid="",hn="",ns="",em="",sd="";
 function show(id){["s1","s2","s3","s4"].forEach(function(s){document.getElementById(s).classList.remove("on")});document.getElementById(id).classList.add("on")}
 function fmt(v){var p=v.split("-");return p[2]+"/"+p[1]+"/"+p[0]}
@@ -192,11 +192,7 @@ function back(){document.getElementById("qrimg").style.display="none";document.g
 async function go2(){
   show("s3");
   try{
-    var r=await fetch('/api/tao-pdf',{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ho_ten:hn,ngay_sinh:ns,email:em,sdt:sd,orderId:oid})
-    });
+    var r=await fetch(AS,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({token:TK,ho_ten:hn,ngay_sinh:ns,email:em,sdt:sd,orderId:oid})});
     var d=await r.json();
     if(d.success&&d.downloadUrl){
       document.getElementById("smsg").innerHTML="Xin chào <strong>"+hn+"</strong>!<br>Bản phân tích của bạn đã sẵn sàng.";
