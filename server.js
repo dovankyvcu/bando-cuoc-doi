@@ -32,8 +32,34 @@ app.post('/api/tao-pdf', async (req, res) => {
   }
 });
 
-// ── Gọi Apps Script – tự follow redirect ──
-function httpsPost(urlStr, body) {
+// ── Gọi Apps Script qua GET – tự follow redirect ──
+function httpsGet(urlStr) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(urlStr);
+    const options = {
+      hostname: url.hostname,
+      path: url.pathname + url.search,
+      method: 'GET',
+    };
+
+    const req = https.request(options, (res) => {
+      if ((res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) && res.headers.location) {
+        console.log('Redirect đến:', res.headers.location);
+        return httpsGet(res.headers.location).then(resolve).catch(reject);
+      }
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        console.log('Response status:', res.statusCode);
+        console.log('Response preview:', data.substring(0, 150));
+        resolve(data);
+      });
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
+}
   return new Promise((resolve, reject) => {
     const url = new URL(urlStr);
     const options = {
@@ -68,18 +94,29 @@ function httpsPost(urlStr, body) {
 }
 
 async function callAppsScript(data) {
-  const body = JSON.stringify(data);
-  const raw = await httpsPost(APPS_SCRIPT_URL, body);
+  // Dùng GET thay vì POST – Apps Script xử lý GET tốt hơn từ server ngoài
+  const params = new URLSearchParams({
+    token:     data.token,
+    ho_ten:    data.ho_ten,
+    ngay_sinh: data.ngay_sinh,
+    email:     data.email || '',
+    sdt:       data.sdt   || '',
+    orderId:   data.orderId,
+  });
 
-  // Kiểm tra có phải HTML không
+  const fullUrl = APPS_SCRIPT_URL + '?' + params.toString();
+  console.log('Gọi Apps Script GET:', APPS_SCRIPT_URL);
+
+  const raw = await httpsGet(fullUrl);
+
   if (raw.trim().startsWith('<')) {
-    throw new Error('Apps Script trả về HTML thay vì JSON – kiểm tra quyền truy cập');
+    throw new Error('Apps Script trả về HTML – kiểm tra quyền truy cập');
   }
 
   try {
     return JSON.parse(raw);
   } catch (e) {
-    throw new Error('Lỗi parse JSON: ' + raw.substring(0, 100));
+    throw new Error('Lỗi parse JSON: ' + raw.substring(0, 200));
   }
 }
 
