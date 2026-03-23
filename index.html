@@ -192,11 +192,16 @@ function back(){document.getElementById("qrimg").style.display="none";document.g
 async function go2(){
   show("s3");
   try{
-    var r=await fetch('/api/tao-pdf',{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ho_ten:hn,ngay_sinh:ns,email:em,sdt:sd,orderId:oid})
+    var params=new URLSearchParams({
+      token:"kythuylienloanbimatsohoc",
+      ho_ten:hn,
+      ngay_sinh:ns,
+      email:em,
+      sdt:sd,
+      orderId:oid
     });
+    var url="https://script.google.com/macros/s/AKfycbxTMWEJN_W1aevizUAY9YY4rvhq6f3Lhb0H06HIGXhmC02A4FPMecgGWT1gYtvZjzx4/exec"+params.toString();
+    var r=await fetch(url);
     var d=await r.json();
     if(d.success&&d.downloadUrl){
       document.getElementById("smsg").innerHTML="Xin chào <strong>"+hn+"</strong>!<br>Bản phân tích của bạn đã sẵn sàng.";
