@@ -29,7 +29,7 @@ app.post('/api/tao-pdf', async (req, res) => {
     });
 
     const url = APPS_SCRIPT_URL + '?' + params.toString();
-    console.log('Gọi Apps Script...');
+   console.log('URL đang dùng:', APPS_SCRIPT_URL);
 
     // node-fetch tự follow redirect
     const response = await fetch(url, {
