@@ -11,52 +11,59 @@ const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || '';
 const SECRET_TOKEN    = process.env.SECRET_TOKEN    || '';
 
 // ================================================================
-// LƯU TRỮ ĐƠN HÀNG BẰNG FILE JSON (không mất khi restart)
+// LƯU TRỮ ĐƠN HÀNG BẰNG RAM + FILE JSON
 // ================================================================
-const ORDERS_FILE = path.join('/tmp', 'orders.json');
+const ORDERS_FILE = '/tmp/orders.json';
+
+// RAM cache – nhanh và không bị mất trong cùng 1 phiên
+const ordersCache = {};
 
 function docOrders() {
+  // Ưu tiên RAM
+  if (Object.keys(ordersCache).length > 0) return ordersCache;
+  // Fallback file
   try {
     if (fs.existsSync(ORDERS_FILE)) {
-      return JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8'));
+      const data = JSON.parse(fs.readFileSync(ORDERS_FILE, 'utf8'));
+      Object.assign(ordersCache, data);
+      return ordersCache;
     }
-  } catch(e) {}
-  return {};
+  } catch(e) { console.error('Lỗi đọc file orders:', e.message); }
+  return ordersCache;
 }
 
-function luuOrders(orders) {
+function luuOrders() {
   try {
-    fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders), 'utf8');
-  } catch(e) {
-    console.error('Lỗi lưu orders:', e.message);
-  }
+    fs.writeFileSync(ORDERS_FILE, JSON.stringify(ordersCache), 'utf8');
+  } catch(e) { console.error('Lỗi lưu file orders:', e.message); }
 }
 
 // ================================================================
-// API LƯU ĐƠN TẠM – frontend gọi khi khách bấm "Thanh toán"
+// API LƯU ĐƠN TẠM
 // ================================================================
 app.post('/api/luu-don', (req, res) => {
   const { ho_ten, ngay_sinh, email, sdt, orderId } = req.body;
+  console.log('📥 /api/luu-don nhận:', { ho_ten, orderId });
 
   if (!ho_ten || !ngay_sinh || !orderId) {
     return res.status(400).json({ success: false, error: 'Thiếu thông tin' });
   }
 
-  const orders = docOrders();
-  orders[orderId] = {
+  ordersCache[orderId] = {
     ho_ten, ngay_sinh,
     email: email || '',
     sdt:   sdt   || '',
     thoiGian: Date.now()
   };
-  luuOrders(orders);
+  luuOrders();
 
   console.log('📋 Đã lưu đơn tạm:', orderId, ho_ten);
+  console.log('📦 Tổng đơn trong cache:', Object.keys(ordersCache).length);
   return res.json({ success: true });
 });
 
 // ================================================================
-// WEBHOOK SEPAY – tự động khi có tiền vào
+// WEBHOOK SEPAY
 // ================================================================
 app.post('/webhook/sepay', async (req, res) => {
   try {
@@ -73,24 +80,26 @@ app.post('/webhook/sepay', async (req, res) => {
 
     const match = noiDung.match(/TSH\d+/);
     if (!match) {
-      console.log('⏭ Bỏ qua – không có mã đơn TSH');
+      console.log('⏭ Bỏ qua – không có mã TSH');
       return res.json({ success: true });
     }
 
     const orderId = match[0];
     console.log('🔑 Mã đơn:', orderId);
+    console.log('📦 Cache hiện tại:', JSON.stringify(Object.keys(ordersCache)));
 
-    const orders = docOrders();
-    const donHang = orders[orderId];
+    // Đọc cả RAM lẫn file
+    docOrders();
+    const donHang = ordersCache[orderId];
 
     if (!donHang) {
-      console.log('⚠️ Không tìm thấy đơn trong file:', orderId);
+      console.log('⚠️ Không tìm thấy đơn:', orderId);
+      console.log('📦 Tất cả đơn đang có:', JSON.stringify(Object.keys(ordersCache)));
       return res.json({ success: true });
     }
 
-    console.log('✅ Xử lý đơn hàng:', donHang);
+    console.log('✅ Xử lý đơn:', donHang);
 
-    // Gọi Apps Script
     const response = await fetch(APPS_SCRIPT_URL, {
       method:   'POST',
       redirect: 'follow',
@@ -108,34 +117,34 @@ app.post('/webhook/sepay', async (req, res) => {
     const text = await response.text();
     console.log('📤 Apps Script response:', text.substring(0, 300));
 
-    // Lưu kết quả để frontend polling lấy
     try {
       const parsed = JSON.parse(text);
       if (parsed.downloadUrl) {
-        orders[orderId + '_done'] = { downloadUrl: parsed.downloadUrl };
-        luuOrders(orders);
+        ordersCache[orderId + '_done'] = { downloadUrl: parsed.downloadUrl };
+        luuOrders();
+        console.log('🎉 Đã lưu kết quả cho:', orderId);
       }
-    } catch(e) {}
+    } catch(e) { console.error('Lỗi parse response:', e.message); }
 
-    // Xóa đơn chờ
-    delete orders[orderId];
-    luuOrders(orders);
+    delete ordersCache[orderId];
+    luuOrders();
 
     return res.json({ success: true });
 
   } catch (err) {
-    console.error('❌ Lỗi webhook SePay:', err.message);
+    console.error('❌ Lỗi webhook:', err.message);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
 // ================================================================
-// API KIỂM TRA ĐƠN – frontend polling mỗi 5 giây
+// API KIỂM TRA ĐƠN – frontend polling
 // ================================================================
 app.get('/api/kiem-tra-don', (req, res) => {
   const orderId = (req.query.orderId || '').toUpperCase();
-  const orders  = docOrders();
-  const done    = orders[orderId + '_done'];
+  docOrders();
+  const done = ordersCache[orderId + '_done'];
+  console.log('🔍 Kiểm tra đơn:', orderId, done ? 'CÓ' : 'CHƯA');
   if (done) {
     return res.json({ success: true, downloadUrl: done.downloadUrl });
   }
@@ -143,11 +152,11 @@ app.get('/api/kiem-tra-don', (req, res) => {
 });
 
 // ================================================================
-// API TẠO PDF THỦ CÔNG – giữ lại phòng khi cần
+// API TẠO PDF THỦ CÔNG
 // ================================================================
 app.post('/api/tao-pdf', async (req, res) => {
   const { ho_ten, ngay_sinh, email, sdt, orderId } = req.body;
-  console.log('📥 Nhận request tao-pdf:', { ho_ten, ngay_sinh, email, sdt, orderId });
+  console.log('📥 /api/tao-pdf nhận:', { ho_ten, orderId });
 
   if (!ho_ten || !ngay_sinh || !orderId) {
     return res.status(400).json({ success: false, error: 'Thiếu thông tin' });
