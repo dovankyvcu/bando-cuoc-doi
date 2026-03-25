@@ -195,11 +195,11 @@ Ngưng đoán mò và để mặc cho số phận! Cuốn "Bản Đồ Cuộc Đ
 </style>
 
 <script>
-var NODE_URL="https://bando-cuoc-doi-production.up.railway.app",BIN="970422",STK="020012909999",CTK="DO THI THU THUY",AMT=185000;
+var NODE_URL="bando-cuoc-doi-production.up.railway.app",BIN="970422",STK="020012909999",CTK="DO THI THU THUY",AMT=185000;
 var oid="",hn="",ns="",em="",sd="";
 function show(id){["s1","s2","s3","s4"].forEach(function(s){document.getElementById(s).classList.remove("on")});document.getElementById(id).classList.add("on")}
 function fmt(v){var p=v.split("-");return p[2]+"/"+p[1]+"/"+p[0]}
-function go1(){
+async function go1(){
   var h=document.getElementById("fname").value.trim();
   var day=document.getElementById("fday").value.trim();
   var month=document.getElementById("fmonth").value.trim();
@@ -219,20 +219,30 @@ function go1(){
   var qr="https://img.vietqr.io/image/"+BIN+"-"+STK+"-compact2.png?amount="+AMT+"&addInfo="+encodeURIComponent(oid)+"&accountName="+encodeURIComponent(CTK);
   var img=document.getElementById("qrimg"),ph=document.getElementById("qrph");
   img.onload=function(){ph.style.display="none";img.style.display="inline-block"};img.src=qr;
+  try{
+    await fetch(NODE_URL.replace(/\/$/,"")+"/api/luu-don",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ho_ten:hn,ngay_sinh:ns,email:em,sdt:sd,orderId:oid})});
+  }catch(e){console.warn("Luu don tam that bai:",e.message)}
   show("s2");window.scrollTo({top:0,behavior:"smooth"});
 }
 function back(){document.getElementById("qrimg").style.display="none";document.getElementById("qrph").style.display="flex";show("s1")}
-async function go2(){
+function go2(){
   show("s3");
-  if(!NODE_URL){show("s2");alert("Lỗi cấu hình: Chưa cài đặt URL Node.js Server trong Tab ⚙️ Kỹ thuật.");return}
-  try{
-    var r=await fetch(NODE_URL.replace(/\/$/,"")+"/api/tao-pdf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ho_ten:hn,ngay_sinh:ns,email:em,sdt:sd,orderId:oid})});
-    var d=await r.json();
-    if(d.success&&d.downloadUrl){
-      document.getElementById("smsg").innerHTML="Xin chào <strong>"+hn+"</strong>!<br>Bản phân tích của bạn đã sẵn sàng.";
-      document.getElementById("dlbtn").href=d.downloadUrl;show("s4");
-    }else{throw new Error(d.error||"Lỗi không xác định từ server")}
-  }catch(e){show("s2");alert("Lỗi: "+e.message)}
+  window.scrollTo({top:0,behavior:"smooth"});
+  var dem=0;
+  var timer=setInterval(async function(){
+    dem++;
+    if(dem>120){clearInterval(timer);show("s2");alert("He thong chua nhan duoc thanh toan. Ma don cua ban: "+oid);return}
+    try{
+      var r=await fetch(NODE_URL.replace(/\/$/,"")+"/api/kiem-tra-don?orderId="+oid);
+      var d=await r.json();
+      if(d.success&&d.downloadUrl){
+        clearInterval(timer);
+        document.getElementById("smsg").innerHTML="Xin chao <strong>"+hn+"</strong>!<br>Ban phan tich da san sang.";
+        document.getElementById("dlbtn").href=d.downloadUrl;
+        show("s4");
+      }
+    }catch(e){console.warn("Polling loi:",e.message)}
+  },5000);
 }
 // GALAXY
 (function(){
