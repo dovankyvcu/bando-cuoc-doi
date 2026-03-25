@@ -195,7 +195,12 @@ Ngưng đoán mò và để mặc cho số phận! Cuốn "Bản Đồ Cuộc Đ
 </style>
 
 <script>
-var NODE_URL="bando-cuoc-doi-production.up.railway.app",BIN="970422",STK="020012909999",CTK="DO THI THU THUY",AMT=185000;
+/* ========================================================
+   ✅ SỬA LỖI: Thêm https:// vào NODE_URL
+   Trước: "bando-cuoc-doi-production.up.railway.app"
+   Sau:   "https://bando-cuoc-doi-production.up.railway.app"
+   ======================================================== */
+var NODE_URL="https://bando-cuoc-doi-production.up.railway.app",BIN="970422",STK="020012909999",CTK="DO THI THU THUY",AMT=185000;
 var oid="",hn="",ns="",em="",sd="";
 function show(id){["s1","s2","s3","s4"].forEach(function(s){document.getElementById(s).classList.remove("on")});document.getElementById(id).classList.add("on")}
 function fmt(v){var p=v.split("-");return p[2]+"/"+p[1]+"/"+p[0]}
@@ -220,7 +225,7 @@ async function go1(){
   var img=document.getElementById("qrimg"),ph=document.getElementById("qrph");
   img.onload=function(){ph.style.display="none";img.style.display="inline-block"};img.src=qr;
   try{
-    await fetch(NODE_URL.replace(/\/$/,"")+"/api/luu-don",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ho_ten:hn,ngay_sinh:ns,email:em,sdt:sd,orderId:oid})});
+    await fetch(NODE_URL+"/api/luu-don",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ho_ten:hn,ngay_sinh:ns,email:em,sdt:sd,orderId:oid})});
   }catch(e){console.warn("Luu don tam that bai:",e.message)}
   show("s2");window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -233,7 +238,7 @@ function go2(){
     dem++;
     if(dem>120){clearInterval(timer);show("s2");alert("He thong chua nhan duoc thanh toan. Ma don cua ban: "+oid);return}
     try{
-      var r=await fetch(NODE_URL.replace(/\/$/,"")+"/api/kiem-tra-don?orderId="+oid);
+      var r=await fetch(NODE_URL+"/api/kiem-tra-don?orderId="+oid);
       var d=await r.json();
       if(d.success&&d.downloadUrl){
         clearInterval(timer);
