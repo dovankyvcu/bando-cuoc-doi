@@ -200,7 +200,7 @@ Ngưng đoán mò và để mặc cho số phận! Cuốn "Bản Đồ Cuộc Đ
    Trước: "bando-cuoc-doi-production.up.railway.app"
    Sau:   "https://bdcd.bimatsohoc.com"
    ======================================================== */
-var NODE_URL="https://bdcd.bimatsohoc.com",BIN="970422",STK="020012909999",CTK="DO THI THU THUY",AMT=99000;
+var NODE_URL="https://sepay-proxy.dovanky-vcu.workers.dev",BIN="970422",STK="020012909999",CTK="DO THI THU THUY",AMT=99000;
 var oid="",hn="",ns="",em="",sd="";
 function show(id){["s1","s2","s3","s4"].forEach(function(s){document.getElementById(s).classList.remove("on")});document.getElementById(id).classList.add("on")}
 function fmt(v){var p=v.split("-");return p[2]+"/"+p[1]+"/"+p[0]}
@@ -225,7 +225,7 @@ async function go1(){
   var img=document.getElementById("qrimg"),ph=document.getElementById("qrph");
   img.onload=function(){ph.style.display="none";img.style.display="inline-block"};img.src=qr;
   try{
-    await fetch(NODE_URL+"/api/luu-don",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ho_ten:hn,ngay_sinh:ns,email:em,sdt:sd,orderId:oid})});
+    await fetch(NODE_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({action:"luu_don",ho_ten:hn,ngay_sinh:ns,email:em,sdt:sd,orderId:oid})});
   }catch(e){console.warn("Luu don tam that bai:",e.message)}
   show("s2");window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -238,7 +238,7 @@ function go2(){
     dem++;
     if(dem>120){clearInterval(timer);show("s2");alert("He thong chua nhan duoc thanh toan. Ma don cua ban: "+oid);return}
     try{
-      var r=await fetch(NODE_URL+"/api/kiem-tra-don?orderId="+oid);
+      var r=await fetch(NODE_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({action:"kiem_tra_don",orderId:oid})});
       var d=await r.json();
       if(d.success&&d.downloadUrl){
         clearInterval(timer);
